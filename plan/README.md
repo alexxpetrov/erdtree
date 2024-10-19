@@ -78,7 +78,7 @@ Both master and slave nodes have similar structures, with the master handling wr
 1. **Project Setup**
    - Initialize the Go module:
      ```
-     go mod init github.com/yourusername/kv-database
+     go mod init github.com/oleksiip-aiola/erdtree
      ```
    - Set up the project structure as outlined above.
    - Create a basic `README.md` with project description and structure.
@@ -94,7 +94,7 @@ Both master and slave nodes have similar structures, with the master handling wr
 
    package kv.v1;
 
-   option go_package = "github.com/yourusername/kv-database/internal/api;api";
+   option go_package = "github.com/oleksiip-aiola/erdtree/internal/api;api";
 
    service KVStore {
      rpc Get(GetRequest) returns (GetResponse) {}
@@ -270,7 +270,7 @@ Both master and slave nodes have similar structures, with the master handling wr
    Link: [Viper](https://github.com/spf13/viper)
 
 10. **Logging (pkg/logger/logger.go)**
-    - Use `go.uber.org/zap` for structured logging.
+    - Use `go.uber.org/zap`/`slog` for structured logging.
 
     ```go
     var logger *zap.Logger
