@@ -205,11 +205,8 @@ wal:
 
 ### Building the System
 ```bash
-# Generate Protocol Buffer code
-protoc -I . \
-    --go_out=. --go_opt=paths=source_relative \
-    --connect-go_out=. --connect-go_opt=paths=source_relative \
-    api/kvstore.proto
+# Generate ConnectRPC Protocol Buffer code
+buf generate
 
 # Build master and slave binaries
 go build -o master ./cmd/master
@@ -237,67 +234,5 @@ go build -o slave ./cmd/slave
 ### Slave Recovery
 1. Reads local WAL entries
 2. Rebuilds local state
-3. Syncs with master for missing updates
-
-## Monitoring and Maintenance
-
-### Key Metrics
-- Replication lag
-- Operation latency
-- Memory usage
-- WAL size
-- Error rates
-
-### Health Checks
-- Master node availability
-- Slave node status
-- Replication status
-- WAL write success rate
-
-## Best Practices
-
-### Production Deployment
-1. Use secure connections (TLS)
-2. Implement proper monitoring
-3. Regular backup of WAL files
-4. Monitor disk space for WAL
-5. Implement proper error handling
-6. Set up alerting for critical issues
-
-### Performance Optimization
-1. Tune WAL sync interval
-2. Adjust batch sizes for replication
-3. Configure appropriate TTL values
-4. Monitor and adjust memory usage
-5. Implement proper connection pooling
-
-## Troubleshooting
-
-### Common Issues
-1. Replication lag
-   - Check network connectivity
-   - Verify slave sync interval
-   - Monitor master load
-
-2. High latency
-   - Check WAL sync frequency
-   - Monitor memory usage
-   - Verify network conditions
-
-3. Data inconsistency
-   - Check WAL integrity
-   - Verify replication status
-   - Review error logs
-
-## Security Considerations
-1. Network security
-2. Authentication
-3. Authorization
-4. Data encryption
-5. Secure configuration management
-
-## Contributing
-Please read CONTRIBUTING.md for details on our code of conduct and the process for submitting pull requests.
-
-## License
+3. Resumes normal operation
 This project is licensed under the MIT License - see the LICENSE file for details.
