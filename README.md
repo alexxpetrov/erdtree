@@ -32,20 +32,7 @@ flowchart LR
     D -->|ON FAIL| E[WAL]
 ```
 
-Master Node                                 Slave Node
-+------------------------+                +-----------------------+
-|    write requests      |                |     read requests     |
-|          ↓             |                |          ↓            |
-|   [Compute Layer]      |                |   [Compute Layer]     |
-|          ↓             |      push      |          ↓            |
-|   [In-Memory Engine]   |   --------->   |   [In-Memory Engine]  |
-|          ↓             |                |          ↓            |
-|   [Storage Layer]      |                |     [Storage]         |
-|          ↓             |                |          ↓            |
-|        [WAL]           |                |        [WAL]          |
-|          ↓             |                |          ↓            |
-|       [DISK]           |                |       [DISK]          |
-+------------------------+                +-----------------------+
+### System Design
 
 The system consists of several key components:
 - Master Node
@@ -54,7 +41,6 @@ The system consists of several key components:
 - In-Memory Storage Engine
 - Replication System
 
-### System Design
 ```
 Master Node
 ├── In-Memory Storage (sync.Map)
