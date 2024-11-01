@@ -4,9 +4,34 @@
 This is a distributed key-value store system implementing a master-slave replication pattern with Write-Ahead Logging (WAL) for durability. The system is built using Go, Connect-RPC, and Protocol Buffers, designed to provide high availability and eventual consistency.
 
 ## Architecture
-![alt text](image.png)
+![alt text](image-1.png)
 
 ## Flow Diagram 
+- WRITE
+```mermaid
+flowchart LR
+    A[Write request] --> B[Compute Layer]
+    B --> C[In-Memory Engine]
+    B -->|Replicate to Slave| CS[In-Memory Engine]
+    C --> D[Storage Layer]
+    D --> E[WAL]
+    E --> F[DISK]
+    CS --> DS[Storage Layer]
+    DS --> ES[WAL]
+    ES --> FS[DISK]
+```
+- READ
+```mermaid
+flowchart LR
+    A[Read request] --> B[Compute Layer]
+    C --> B
+    B --> C[In-Memory Engine]
+    D --> B
+    C -->|ON FAIL| D[Storage Layer]
+    E --> B
+    D -->|ON FAIL| E[WAL]
+```
+
 Master Node                                 Slave Node
 +------------------------+                +-----------------------+
 |    write requests      |                |     read requests     |
@@ -84,9 +109,9 @@ Slave Node
 
 **Key Features**:
 - Atomic data management using sync.Map
-# Why sync.Map over a regular Map? Because we're creating a cache storage that cannot be edited and can only be READ/DELETED/VIEWED. 
-# It's one of 2 cases when a sync.Map is more optimized, than a regular map. 
-# https://pkg.go.dev/sync#Map
+- Why sync.Map over a regular Map? Because we're creating a cache storage that cannot be edited and can only be written or viewed. 
+It's one of 2 cases when a sync.Map is more optimized, than a regular map. 
+https://pkg.go.dev/sync#Map
 
 **Key Methods**:
 - `Set(key, value)`: Write operations
