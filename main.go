@@ -1,11 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
 	"time"
 
+	"connectrpc.com/connect"
+	dbv1 "github.com/oleksiip-aiola/erdtree/gen/api/v1"
 	"github.com/oleksiip-aiola/erdtree/gen/api/v1/dbv1connect"
 	"github.com/oleksiip-aiola/erdtree/internal/config"
 	"github.com/oleksiip-aiola/erdtree/internal/db"
@@ -41,10 +44,19 @@ func main() {
 
 	mux := http.NewServeMux()
 
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Prepare the set request
+	req := connect.NewRequest(&dbv1.SetRequest{
+		Key:   "test_key",
+		Value: []byte("test_value"),
+	})
+	master.Set(ctx, req)
 	// interceptors := connect.WithInterceptors(NewAuthInterceptor())
 	path, handler := dbv1connect.NewErdtreeStoreHandler(master)
 
-	fmt.Printf("ConnectRPC is serving at :%s\n", os.Getenv("PORT"))
+	fmt.Printf("ConnectRPC is serving at :%d\n", cfg.Server.Port)
 
 	publicUrl := os.Getenv("PUBLIC_URL")
 
