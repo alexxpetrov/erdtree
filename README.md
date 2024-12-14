@@ -1,4 +1,4 @@
-# Distributed Key-Value Store System
+# Erdtree - Distributed Key-Value Store System
 
 ## System Overview
 This is a distributed key-value store system implementing a master-slave replication pattern with Write-Ahead Logging (WAL) for durability. The system is built using Go, Connect-RPC, and Protocol Buffers, designed to provide high availability and eventual consistency.
