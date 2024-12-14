@@ -8,12 +8,23 @@ import (
 	"github.com/spf13/viper"
 )
 
-type Config struct {
+type MasterServerConfig struct {
+	Server         ServerConfig
+	Database       *db.Config
+	WAL            WALConfig
+	SlaveAddresses []string
+	SyncInterval   time.Duration
+	BatchSize      int
+}
+type SlaveServerConfig struct {
 	Server   ServerConfig
 	Database *db.Config
 	WAL      WALConfig
-	Master   MasterConfig
-	Slave    SlaveConfig
+}
+type Config struct {
+	Master MasterServerConfig
+	Slave  SlaveServerConfig
+	Env    string
 }
 
 type ServerConfig struct {
@@ -24,12 +35,6 @@ type ServerConfig struct {
 type WALConfig struct {
 	Directory    string
 	SyncInterval time.Duration
-}
-
-type MasterConfig struct {
-	SlaveAddresses []string
-	SyncInterval   time.Duration
-	BatchSize      int
 }
 
 type SlaveConfig struct {
@@ -85,20 +90,20 @@ func (c *Config) IsMaster() bool {
 }
 
 func ValidateConfig(config *Config) error {
-	if config.Server.Port <= 0 || config.Server.Port > 65535 {
-		return fmt.Errorf("invalid server port: %d", config.Server.Port)
+	if config.Master.Server.Port <= 0 || config.Master.Server.Port > 65535 {
+		return fmt.Errorf("invalid server port: %d", config.Master.Server.Port)
 	}
 
-	if config.Database.MaxSize <= 0 {
-		return fmt.Errorf("invalid database max size: %d", config.Database.MaxSize)
+	if config.Master.Database.MaxSize <= 0 {
+		return fmt.Errorf("invalid database max size: %d", config.Master.Database.MaxSize)
 	}
 
-	if config.Database.GCInterval <= 0 {
-		return fmt.Errorf("invalid database GC interval: %v", config.Database.GCInterval)
+	if config.Master.Database.GCInterval <= 0 {
+		return fmt.Errorf("invalid database GC interval: %v", config.Master.Database.GCInterval)
 	}
 
-	if config.WAL.SyncInterval <= 0 {
-		return fmt.Errorf("invalid WAL sync interval: %v", config.WAL.SyncInterval)
+	if config.Master.WAL.SyncInterval <= 0 {
+		return fmt.Errorf("invalid WAL sync interval: %v", config.Master.WAL.SyncInterval)
 	}
 
 	if config.IsMaster() {
@@ -108,11 +113,12 @@ func ValidateConfig(config *Config) error {
 		if config.Master.BatchSize <= 0 {
 			return fmt.Errorf("invalid master batch size: %d", config.Master.BatchSize)
 		}
-	} else {
-		if config.Slave.MasterAddress == "" {
-			return fmt.Errorf("master address is required for slave mode")
-		}
 	}
+	// else {
+	// 	if config.Master.Slave.MasterAddress == "" {
+	// 		return fmt.Errorf("master address is required for slave mode")
+	// 	}
+	// }
 
 	return nil
 }

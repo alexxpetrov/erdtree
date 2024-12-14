@@ -29,31 +29,41 @@ type Value struct {
 	ExpiresAt time.Time
 }
 
-func NewKVStoreServer(walDir string, isMaster bool, slaveAddresses []string, db *db.InMemoryDB, wal *wal.WAL) (*KVStoreServer, error) {
+func NewMasterKVStoreServer(walDir string, slaveAddresses []string, db *db.InMemoryDB, wal *wal.WAL) (*KVStoreServer, error) {
 	server := &KVStoreServer{
 		db:       db,
 		wal:      wal,
-		isMaster: isMaster,
+		isMaster: true,
 	}
-	cfg, _ := config.LoadConfig("config.yaml")
+	cfg, _ := config.LoadConfig("../config.yaml")
 
-	if isMaster {
-
-		server.masterRepl = replication.NewMasterReplication(wal, cfg.Master.SyncInterval, cfg.Master.BatchSize)
-		for _, addr := range slaveAddresses {
-			if err := server.masterRepl.AddSlave(addr); err != nil {
-				return nil, fmt.Errorf("failed to add slave %s: %w", addr, err)
-			}
+	server.masterRepl = replication.NewMasterReplication(wal, cfg.Master.SyncInterval, cfg.Master.BatchSize)
+	for _, addr := range slaveAddresses {
+		if err := server.masterRepl.AddSlave(addr); err != nil {
+			return nil, fmt.Errorf("failed to add slave %s: %w", addr, err)
 		}
-	} else {
-
-		server.slaveRepl = replication.NewSlaveReplication(wal)
 	}
 
 	if err := server.db.Recover(); err != nil {
 		return nil, fmt.Errorf("failed to recover data: %w", err)
 	}
+	fmt.Print("MASTER CREATED")
 
+	return server, nil
+}
+
+func NewSlaveKVStoreServer(walDir string, db *db.InMemoryDB, wal *wal.WAL) (*KVStoreServer, error) {
+	server := &KVStoreServer{
+		db:        db,
+		wal:       wal,
+		isMaster:  false,
+		slaveRepl: replication.NewSlaveReplication(wal),
+	}
+
+	if err := server.db.Recover(); err != nil {
+		return nil, fmt.Errorf("failed to recover data: %w", err)
+	}
+	fmt.Print("SLAVE CREATED")
 	return server, nil
 }
 
@@ -68,7 +78,6 @@ func (server *KVStoreServer) Get(ctx context.Context, req *connect.Request[dbv1.
 	}
 
 	res := connect.NewResponse(&dbv1.GetResponse{Value: value})
-
 	return res, nil
 }
 
@@ -78,6 +87,7 @@ func (server *KVStoreServer) Set(ctx context.Context, req *connect.Request[dbv1.
 	}
 	err := server.db.Set(req.Msg.Key, req.Msg.Value, time.Duration(1000)*time.Second)
 	if err != nil {
+
 		return nil, status.Error(codes.Internal, "failed to set value")
 	}
 
@@ -124,12 +134,6 @@ func (server *KVStoreServer) Replicate(ctx context.Context, req *connect.Request
 	if server.isMaster {
 		return nil, status.Error(codes.PermissionDenied, "cannot replicate to master")
 	}
-
 	res, _ := server.slaveRepl.Replicate(ctx, req)
 	return res, nil
 }
-
-// func (server *KVStoreServer) HealthCheck(ctx context.Context, req *emptypb.Empty) (*dbv1.HealthCheckResponse, error) {
-// 	// Implement basic health check logic
-// 	return &dbv1.HealthCheckResponse{Status: dbv1.HealthCheckResponse_SERVING}, nil
-// }

@@ -2,6 +2,7 @@ package db
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -49,7 +50,7 @@ func NewInMemoryDb(config *Config, wal *wal.WAL) (*InMemoryDB, error) {
 
 func (db *InMemoryDB) Get(key string) ([]byte, error) {
 	val, ok := db.data.Load(key)
-
+	// fmt.Println(val, key)
 	if !ok {
 		return nil, ErrKeyNotFound
 	}
@@ -66,7 +67,8 @@ func (db *InMemoryDB) Get(key string) ([]byte, error) {
 }
 
 func (db *InMemoryDB) Set(key string, value []byte, ttl time.Duration) error {
-	expiresAt := time.Time{}
+	fmt.Println("OPERATION SET", key, value)
+	expiresAt := time.Now().Add(1 * time.Hour)
 	if ttl > 0 {
 		expiresAt.Add(ttl)
 	}
@@ -124,8 +126,8 @@ func (db *InMemoryDB) Delete(key string) error {
 }
 
 func (db *InMemoryDB) Recover() error {
-	entries, err := db.wal.Recover(0)
-
+	// Control Recovery
+	entries, err := db.wal.Recover(time.Now().Unix())
 	if err != nil {
 		return err
 	}

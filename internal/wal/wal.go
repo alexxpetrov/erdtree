@@ -38,14 +38,13 @@ type WAL struct {
 	lastSync       time.Time
 }
 
-var wal *WAL
-
 func NewWal(dir string, syncInterval time.Duration) (*WAL, error) {
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	absPath, _ := filepath.Abs(dir)
+	if err := os.MkdirAll(absPath, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create WAL directory: %w", err)
 	}
 
-	wal = &WAL{
+	wal := &WAL{
 		dir:          dir,
 		syncInterval: syncInterval,
 	}
@@ -67,11 +66,10 @@ func (wal *WAL) openNewLogFile() error {
 	}
 
 	nowUtc := time.Now().UTC()
-	fileName := fmt.Sprintf("%s-%d-%d-%d-%d-%s", logFilePrefix, nowUtc.Month(), nowUtc.Day(), nowUtc.Hour(), nowUtc.Minute(), logFilePostfix)
+	fileName := fmt.Sprintf("%s-%d-%d-%d-%s", logFilePrefix, nowUtc.Month(), nowUtc.Day(), nowUtc.Hour(), logFilePostfix)
 	filePath := filepath.Join(wal.dir, fileName)
 
 	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-
 	if err != nil {
 		return fmt.Errorf("failed to create/open file: %w", err)
 	}
@@ -152,24 +150,24 @@ func (wal *WAL) Close() error {
 }
 
 func (w *WAL) Recover(timestamp int64) ([]*dbv1.LogEntry, error) {
-	wal.mx.Lock()
-	defer wal.mx.Unlock()
+	w.mx.Lock()
+	defer w.mx.Unlock()
 
 	var entries []*dbv1.LogEntry
 
 	nowUtc := time.Now().UTC()
 
 	if timestamp != 0 {
-		nowUtc = time.Unix(0, timestamp).UTC()
+		nowUtc = time.Unix(timestamp, 0).UTC()
 	}
 
-	files, err := filepath.Glob(filepath.Join(wal.dir, fmt.Sprintf("%s-%d-%d-%d-*-%s", logFilePrefix, nowUtc.Month(), nowUtc.Day(), nowUtc.Hour(), logFilePostfix)))
+	files, err := filepath.Glob(filepath.Join(w.dir, fmt.Sprintf("%s-%d-%d-%d-%s", logFilePrefix, nowUtc.Month(), nowUtc.Day(), nowUtc.Hour(), logFilePostfix)))
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to gather files: %w", err)
 	}
 	for _, file := range files {
-		fileEntries, err := wal.recoverFromFile(file)
+		fileEntries, err := w.recoverFromFile(file)
 
 		if err != nil {
 			return nil, err
@@ -210,7 +208,7 @@ func (wal *WAL) recoverFromFile(filePath string) ([]*dbv1.LogEntry, error) {
 
 		var entry dbv1.LogEntry
 		if err := proto.Unmarshal(data, &entry); err != nil {
-			return nil, fmt.Errorf("ailed to unmarshal data: %w", err)
+			return nil, fmt.Errorf("failed to unmarshal data: %w", err)
 		}
 
 		entries = append(entries, &entry)

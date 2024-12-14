@@ -45,7 +45,6 @@ func (slave *SlaveReplication) Replicate(ctx context.Context, req *connect.Reque
 	}
 
 	res := connect.NewResponse(&dbv1.ReplicationResponse{Success: true})
-
 	return res, nil
 }
 
