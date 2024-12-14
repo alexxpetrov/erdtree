@@ -35,6 +35,7 @@ syntax = "proto3";
     UNSPECIFIED = 0;
     SET = 1;
     DELETE = 2;
+    LOAD = 3;
   }
   
   message LogEntry {

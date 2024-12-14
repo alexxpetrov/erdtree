@@ -61,7 +61,6 @@ func (m *MasterReplication) AddSlave(address string) error {
 		baseURL,
 		connect.WithGRPC(), // Use this if you want gRPC compatibility
 	)
-
 	master.slaves[address] = &SlaveInfo{
 		Address:  address,
 		Client:   erdtreeClient,
@@ -119,7 +118,6 @@ func (m *MasterReplication) syncSlave(slave *SlaveInfo) {
 		}
 
 		batch := entries[i:end]
-
 		if err := master.sendBatchToSlave(slave, batch); err != nil {
 			fmt.Printf("Error syncing batch to slave %s: %v\n", slave.Address, err)
 		}
@@ -149,9 +147,8 @@ func (m *MasterReplication) sendBatchToSlave(slave *SlaveInfo, batch []*dbv1.Log
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-
 	resp, err := slave.Client.Replicate(ctx, request)
-	fmt.Println(err)
+
 	if err != nil {
 		// Handle different types of errors
 		if connectErr, ok := err.(*connect.Error); ok {
