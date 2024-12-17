@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	dbv1 "github.com/oleksiip-aiola/erdtree/gen/api/v1"
-	"github.com/oleksiip-aiola/erdtree/gen/api/v1/dbv1connect"
+	dbv1 "github.com/oleksiip-aiola/erdtree/gen/erdtree/v1"
+	"github.com/oleksiip-aiola/erdtree/gen/erdtree/v1/dbv1connect"
 	"github.com/oleksiip-aiola/erdtree/internal/wal"
 )
 

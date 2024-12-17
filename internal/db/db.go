@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	dbv1 "github.com/oleksiip-aiola/erdtree/gen/api/v1"
+	dbv1 "github.com/oleksiip-aiola/erdtree/gen/erdtree/v1"
 	"github.com/oleksiip-aiola/erdtree/internal/wal"
 )
 

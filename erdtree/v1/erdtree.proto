@@ -2,7 +2,7 @@ syntax = "proto3";
 
    package erdtree.v1;
 
-   option go_package = "github.com/oleksiip-aiola/erdtree/gen/api/v1;dbv1";  
+   option go_package = "github.com/oleksiip-aiola/erdtree/gen/erdtree/v1;dbv1";  
 
    message GetRequest {
     string key = 1;

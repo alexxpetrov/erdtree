@@ -1,8 +1,8 @@
 # Step 1: Build the Go binary
-FROM golang:1.23.2 AS builder
+FROM golang:1.23-alpine AS builder
 
 # Set the working directory inside the container
-WORKDIR /app
+WORKDIR /
 
 # Copy the go.mod and go.sum files to download dependencies first
 COPY go.mod go.sum ./
@@ -11,25 +11,22 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 # Copy the entire project into the working directory
-COPY ./ ./
+COPY . .
 
 # Build the Go binary
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o main .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /app /cmd/main.go
 
 # Step 2: Create a lightweight image with the binary
-FROM scratch
+FROM alpine
 
 # Set the working directory
-WORKDIR /app
+WORKDIR /
 
 # Copy the compiled binary from the builder stage
-COPY --from=builder /app/main .
-
-# Copy config yaml from builder stage
-COPY --from=builder /app/config.yaml .
+COPY --from=builder /app .
 
 # Expose the port that the application listens on (replace 8080 if different)
-EXPOSE 3000
+EXPOSE 50051 50052 50053
 
 # Set the entry point for the container
-CMD ["./main"]
+CMD ["./app", "-config", "/config.yaml"]

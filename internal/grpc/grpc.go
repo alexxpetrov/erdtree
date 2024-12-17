@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/oleksiip-aiola/erdtree/gen/api/v1/dbv1connect"
+	"github.com/oleksiip-aiola/erdtree/gen/erdtree/v1/dbv1connect"
 	"github.com/oleksiip-aiola/erdtree/internal/server"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
