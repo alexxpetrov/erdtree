@@ -26,10 +26,7 @@ type Server struct {
 
 func New(port int, kvStore *server.KVStoreServer, logger *slog.Logger) (*Server, error) {
 	mux := http.NewServeMux()
-
 	path, handler := dbv1connect.NewErdtreeStoreHandler(kvStore)
-
-	fmt.Printf("ConnectRPC is serving at :%d\n", port)
 
 	publicUrl := os.Getenv("PUBLIC_URL")
 
@@ -74,9 +71,6 @@ func (server *Server) Run(ctx context.Context) error {
 
 		server.logger.Info(fmt.Sprintf("starting listening: %s", server.srv.Addr))
 
-		// if server.certFilePath != "" && server.keyFilePath != "" {
-		// 	errResult <- server.srv.ListenAndServeTLS(server.certFilePath, server.keyFilePath)
-		// }
 		server.srv.ListenAndServe()
 	}()
 

@@ -75,14 +75,11 @@ func setDefaults() {
 
 	// WAL defaults
 	viper.SetDefault("wal.directory", "/var/lib/kvstore/wal")
-	viper.SetDefault("wal.syncinterval", "100ms")
+	viper.SetDefault("wal.syncinterval", "2s")
 
 	// Master defaults
 	viper.SetDefault("master.syncinterval", "10s")
 	viper.SetDefault("master.batchsize", 100)
-
-	// Slave defaults
-	// No default for master address, as it's required for slave mode
 }
 
 func (c *Config) IsMaster() bool {
@@ -114,11 +111,6 @@ func ValidateConfig(config *Config) error {
 			return fmt.Errorf("invalid master batch size: %d", config.Master.BatchSize)
 		}
 	}
-	// else {
-	// 	if config.Master.Slave.MasterAddress == "" {
-	// 		return fmt.Errorf("master address is required for slave mode")
-	// 	}
-	// }
 
 	return nil
 }

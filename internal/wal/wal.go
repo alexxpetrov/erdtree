@@ -172,10 +172,8 @@ func (w *WAL) Recover(timestamp int64) ([]*dbv1.LogEntry, error) {
 		if err != nil {
 			return nil, err
 		}
-
 		entries = append(entries, fileEntries...)
 	}
-
 	return entries, nil
 }
 
@@ -219,7 +217,6 @@ func (wal *WAL) recoverFromFile(filePath string) ([]*dbv1.LogEntry, error) {
 
 func (wal *WAL) GetEntriesSince(lastSync int64) ([]*dbv1.LogEntry, error) {
 	entries, err := wal.Recover(lastSync)
-
 	if err != nil {
 		return nil, err
 	}

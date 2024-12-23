@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"connectrpc.com/connect"
@@ -16,12 +17,12 @@ import (
 )
 
 type KVStoreServer struct {
-	// dbv1.UnimplementedKVStoreServer
 	db         *db.InMemoryDB
 	wal        *wal.WAL
 	masterRepl *replication.MasterReplication
 	slaveRepl  *replication.SlaveReplication
 	isMaster   bool
+	logger     *slog.Logger
 }
 
 type Value struct {
@@ -29,17 +30,19 @@ type Value struct {
 	ExpiresAt time.Time
 }
 
-func NewMasterKVStoreServer(walDir string, slaveAddresses []string, db *db.InMemoryDB, wal *wal.WAL) (*KVStoreServer, error) {
+func NewMasterKVStoreServer(slaveAddresses []string, db *db.InMemoryDB, wal *wal.WAL, logger *slog.Logger) (*KVStoreServer, error) {
 	server := &KVStoreServer{
 		db:       db,
 		wal:      wal,
+		logger:   logger,
 		isMaster: true,
 	}
 	cfg, _ := config.LoadConfig("../config.yaml")
 
-	server.masterRepl = replication.NewMasterReplication(wal, cfg.Master.SyncInterval, cfg.Master.BatchSize)
+	server.masterRepl = replication.NewMasterReplication(wal, cfg.Master.SyncInterval, cfg.Master.BatchSize, logger)
 	for _, addr := range slaveAddresses {
-		if err := server.masterRepl.AddSlave(addr); err != nil {
+
+		if err := server.masterRepl.AddSlave(addr, cfg.Env); err != nil {
 			return nil, fmt.Errorf("failed to add slave %s: %w", addr, err)
 		}
 	}
@@ -47,23 +50,22 @@ func NewMasterKVStoreServer(walDir string, slaveAddresses []string, db *db.InMem
 	if err := server.db.Recover(); err != nil {
 		return nil, fmt.Errorf("failed to recover data: %w", err)
 	}
-	fmt.Print("MASTER CREATED")
 
 	return server, nil
 }
 
-func NewSlaveKVStoreServer(walDir string, db *db.InMemoryDB, wal *wal.WAL) (*KVStoreServer, error) {
+func NewSlaveKVStoreServer(db *db.InMemoryDB, wal *wal.WAL, logger *slog.Logger) (*KVStoreServer, error) {
 	server := &KVStoreServer{
 		db:        db,
 		wal:       wal,
 		isMaster:  false,
-		slaveRepl: replication.NewSlaveReplication(wal),
+		logger:    logger,
+		slaveRepl: replication.NewSlaveReplication(wal, logger),
 	}
 
 	if err := server.db.Recover(); err != nil {
 		return nil, fmt.Errorf("failed to recover data: %w", err)
 	}
-	fmt.Print("SLAVE CREATED")
 	return server, nil
 }
 
@@ -76,6 +78,8 @@ func (server *KVStoreServer) Get(ctx context.Context, req *connect.Request[dbv1.
 	} else if err != nil {
 		return nil, status.Error(codes.Internal, "internal error")
 	}
+
+	server.logger.Info("OPERATION GET", req.Msg.Key, value)
 
 	res := connect.NewResponse(&dbv1.GetResponse{Value: value})
 	return res, nil
@@ -90,6 +94,8 @@ func (server *KVStoreServer) Set(ctx context.Context, req *connect.Request[dbv1.
 
 		return nil, status.Error(codes.Internal, "failed to set value")
 	}
+
+	server.logger.Info("OPERATION SET", req.Msg.Key, req.Msg.Value)
 
 	if server.masterRepl != nil {
 		server.masterRepl.ReplicateEntry(&dbv1.LogEntry{
@@ -118,6 +124,8 @@ func (server *KVStoreServer) Delete(ctx context.Context, req *connect.Request[db
 		return nil, status.Error(codes.Internal, "failed to delete key")
 	}
 
+	server.logger.Info("OPERATION DELETE", req.Msg.Key, true)
+
 	if server.masterRepl != nil {
 		server.masterRepl.ReplicateEntry(&dbv1.LogEntry{
 			Timestamp: time.Now().UnixNano(),
@@ -135,5 +143,6 @@ func (server *KVStoreServer) Replicate(ctx context.Context, req *connect.Request
 		return nil, status.Error(codes.PermissionDenied, "cannot replicate to master")
 	}
 	res, _ := server.slaveRepl.Replicate(ctx, req)
+
 	return res, nil
 }

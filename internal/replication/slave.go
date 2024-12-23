@@ -3,6 +3,7 @@ package replication
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -17,11 +18,13 @@ type SlaveReplication struct {
 	wal         *wal.WAL
 	lastApplied int64
 	mx          sync.RWMutex
+	logger      *slog.Logger
 }
 
-func NewSlaveReplication(wal *wal.WAL) *SlaveReplication {
+func NewSlaveReplication(wal *wal.WAL, logger *slog.Logger) *SlaveReplication {
 	return &SlaveReplication{
-		wal: wal,
+		wal:    wal,
+		logger: logger,
 	}
 }
 
@@ -29,6 +32,8 @@ func (slave *SlaveReplication) Replicate(ctx context.Context, req *connect.Reque
 	slave.mx.Lock()
 	defer slave.mx.Unlock()
 	for _, entry := range req.Msg.Entries {
+		slave.logger.Info("SLAVE REPLICATING", entry.Key, entry)
+
 		if entry.Timestamp <= slave.lastApplied {
 			continue
 		}
@@ -55,13 +60,11 @@ func (slave *SlaveReplication) applyEntry(entry *dbv1.LogEntry) error {
 
 	switch entry.Operation {
 	case dbv1.Operation_SET:
-
 		slave.store.Store(entry.Key, &db.Value{
 			Data:         entry.Value,
 			LastAccessed: time.Now(),
 			ExpiresAt:    time.Unix(0, entry.ExpiresAt),
 		})
-
 	case dbv1.Operation_DELETE:
 		slave.store.Delete(entry.Key)
 	default:
@@ -69,10 +72,4 @@ func (slave *SlaveReplication) applyEntry(entry *dbv1.LogEntry) error {
 	}
 
 	return nil
-}
-
-func (slave *SlaveReplication) GetLastAppliedTimestamp() int64 {
-	slave.mx.RLock()
-	defer slave.mx.RUnlock()
-	return slave.lastApplied
 }

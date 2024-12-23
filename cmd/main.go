@@ -25,19 +25,20 @@ func main() {
 		fmt.Errorf("Invalid configuration: %v", err)
 	}
 
-	logger := components.SetupLogger(cfg.Env)
 	for _, address := range cfg.Master.SlaveAddresses {
 		address := strings.Split(address, ":")
 		port, _ := strconv.Atoi(address[1])
-		go createNode(cfg, logger, port, false)
+		go createNode(cfg, port, false)
 	}
 
-	createNode(cfg, logger, cfg.Master.Server.Port, true)
+	createNode(cfg, cfg.Master.Server.Port, true)
 }
 
-func createNode(cfg *config.Config, logger *slog.Logger, port int, isMaster bool) {
+func createNode(cfg *config.Config, port int, isMaster bool) {
 	var serverComponents *components.Components
 	var err error
+
+	logger := components.SetupLogger(cfg.Env)
 
 	serverComponents, err = components.InitComponents(cfg, logger, port, isMaster)
 
@@ -46,6 +47,7 @@ func createNode(cfg *config.Config, logger *slog.Logger, port int, isMaster bool
 		os.Exit(1)
 	}
 
+	// Graceful shutdown
 	defer serverComponents.Shutdown()
 
 	eg, ctx := errgroup.WithContext(context.Background())
@@ -69,5 +71,4 @@ func createNode(cfg *config.Config, logger *slog.Logger, port int, isMaster bool
 
 	err = eg.Wait()
 	logger.Info("Gracefully shutting down the servers", slog.String("error", err.Error()))
-
 }

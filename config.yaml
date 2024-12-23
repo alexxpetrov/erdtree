@@ -4,10 +4,10 @@ master:
     host: "0.0.0.0"
   database:
     maxsize: 1000000
-    gcinterval: "5m"
+    gcinterval: "2m"
   wal:
     directory: "../wal/master"
-    syncinterval: "100ms"
+    syncinterval: "10s"
   slaveaddresses:
     - "localhost:50052"
     - "localhost:50053"
@@ -15,12 +15,11 @@ master:
   batchsize: 100
 slave:
    server:
-     port: 50052
      host: "0.0.0.0"
    database:
      maxsize: 1000000
-     gcinterval: "5m"
+     gcinterval: "2m"
    wal:
      directory: "../wal/slave"
-     syncinterval: "100ms"
+     syncinterval: "10s"
 env: local

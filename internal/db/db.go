@@ -2,7 +2,7 @@ package db
 
 import (
 	"errors"
-	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -29,6 +29,7 @@ type InMemoryDB struct {
 	size       int
 	gcInterval time.Duration
 	mx         sync.Mutex
+	logger     *slog.Logger
 }
 
 type Config struct {
@@ -38,19 +39,22 @@ type Config struct {
 	WAL          *wal.WAL
 }
 
-func NewInMemoryDb(config *Config, wal *wal.WAL) (*InMemoryDB, error) {
+func NewInMemoryDb(config *Config, wal *wal.WAL, logger *slog.Logger) (*InMemoryDB, error) {
 	store := &InMemoryDB{
 		wal:        wal,
 		maxSize:    config.MaxSize,
 		gcInterval: config.GCInterval,
+		logger:     logger,
 	}
+
+	go store.startGC()
 
 	return store, nil
 }
 
 func (db *InMemoryDB) Get(key string) ([]byte, error) {
 	val, ok := db.data.Load(key)
-	// fmt.Println(val, key)
+
 	if !ok {
 		return nil, ErrKeyNotFound
 	}
@@ -67,7 +71,6 @@ func (db *InMemoryDB) Get(key string) ([]byte, error) {
 }
 
 func (db *InMemoryDB) Set(key string, value []byte, ttl time.Duration) error {
-	fmt.Println("OPERATION SET", key, value)
 	expiresAt := time.Now().Add(1 * time.Hour)
 	if ttl > 0 {
 		expiresAt.Add(ttl)
@@ -98,6 +101,31 @@ func (db *InMemoryDB) Set(key string, value []byte, ttl time.Duration) error {
 	}
 
 	return nil
+}
+
+func (db *InMemoryDB) evictExpiredOrLast() {
+	var oldestKey interface{}
+	var oldestAccess time.Time
+	now := time.Now()
+	db.mx.Lock()
+	defer db.mx.Unlock()
+
+	db.data.Range(func(key, value interface{}) bool {
+		val := value.(*Value)
+		if oldestAccess.IsZero() || val.LastAccessed.Before(oldestAccess) {
+			oldestAccess = val.LastAccessed
+			oldestKey = key
+		}
+		if !val.ExpiresAt.IsZero() && now.After(val.ExpiresAt) {
+			db.data.Delete(key)
+			db.size--
+		}
+		return true
+	})
+
+	if db.maxSize == db.size {
+		db.data.Delete(oldestKey)
+	}
 }
 
 func (db *InMemoryDB) Delete(key string) error {
@@ -131,6 +159,7 @@ func (db *InMemoryDB) Recover() error {
 	if err != nil {
 		return err
 	}
+	db.logger.Info("START RECOVERY", "recover", entries)
 
 	for _, entry := range entries {
 		switch entry.Operation {
@@ -140,39 +169,14 @@ func (db *InMemoryDB) Recover() error {
 				LastAccessed: time.Now(),
 				ExpiresAt:    time.Unix(0, entry.ExpiresAt),
 			})
+			db.logger.Info("RECOVERY SET", entry.Key, entry.Value)
 		case dbv1.Operation_DELETE:
 			db.data.Delete(entry.Key)
+			db.logger.Info("RECOVERY DELETE", entry.Key, entry.Value)
 		}
 	}
 
 	return nil
-}
-
-func (db *InMemoryDB) evictExpiredOrLast() {
-	var oldestKey interface{}
-	var oldestAccess time.Time
-	now := time.Now()
-
-	db.data.Range(func(key, value interface{}) bool {
-		val := value.(*Value)
-		if oldestAccess.IsZero() || val.LastAccessed.Before(oldestAccess) {
-			oldestAccess = val.LastAccessed
-			oldestKey = key
-		}
-		if !val.ExpiresAt.IsZero() && now.After(val.ExpiresAt) {
-			db.data.Delete(key)
-			db.size--
-		}
-		return true
-	})
-
-	// Maybe this lock isn't necessary here. What are the odds that another goroutine enters
-	// this piece between sync.Map's controlled .Range and .Delete? Leaving it here just in case
-	db.mx.Lock()
-	if db.maxSize == db.size {
-		db.data.Delete(oldestKey)
-	}
-	db.mx.Unlock()
 }
 
 func (db *InMemoryDB) startGC() {
@@ -186,13 +190,16 @@ func (db *InMemoryDB) startGC() {
 
 func (db *InMemoryDB) runGC() {
 	now := time.Now()
+	db.logger.Info("START GC")
 
+	// Remove expired records only. If DB Size overflows, the last item will be removed on Set() in evictExpiredOrLast
 	db.data.Range(func(key, value interface{}) bool {
 		val := value.(*Value)
 
 		if !val.ExpiresAt.IsZero() && now.After(val.ExpiresAt) {
 			db.data.Delete(key)
 			db.size--
+			db.logger.Info("DB RECORD REMOVED", key, value)
 		}
 		return true
 	})

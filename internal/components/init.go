@@ -28,7 +28,6 @@ type Components struct {
 }
 
 func InitComponents(cfg *config.Config, logger *slog.Logger, port int, isMaster bool) (*Components, error) {
-
 	var database *db.InMemoryDB
 	var kvServer *server.KVStoreServer
 	var httpServer *grpc.Server
@@ -40,17 +39,17 @@ func InitComponents(cfg *config.Config, logger *slog.Logger, port int, isMaster 
 
 		writeAheadLog, err = wal.NewWal(walDir, 100*time.Millisecond)
 		if err != nil {
-			fmt.Errorf("failed  to create wal: %w", err)
+			logger.Error("failed  to create wal", "error", err.Error())
 		}
 
-		database, err = db.NewInMemoryDb(cfg.Master.Database, writeAheadLog)
+		database, err = db.NewInMemoryDb(cfg.Master.Database, writeAheadLog, logger)
 		if err != nil {
-			fmt.Errorf("failed to create database: %w", err)
+			logger.Error("failed to create database", "error", err.Error())
 		}
 
-		kvServer, err = server.NewMasterKVStoreServer(cfg.Master.WAL.Directory, cfg.Master.SlaveAddresses, database, writeAheadLog)
+		kvServer, err = server.NewMasterKVStoreServer(cfg.Master.SlaveAddresses, database, writeAheadLog, logger)
 		if err != nil {
-			fmt.Errorf("Failed to create server: %v", err)
+			logger.Error("Failed to create server", "error", err.Error())
 		}
 
 		httpServer, err = grpc.New(cfg.Master.Server.Port, kvServer, logger)
@@ -62,19 +61,17 @@ func InitComponents(cfg *config.Config, logger *slog.Logger, port int, isMaster 
 		walDir := fmt.Sprintf("%s-%d", cfg.Slave.WAL.Directory, port)
 		writeAheadLog, err = wal.NewWal(walDir, 100*time.Millisecond)
 		if err != nil {
-			fmt.Errorf("failed  to create wal: %w", err)
+			logger.Error("failed  to create wal", "error", err.Error())
 		}
 
-		database, err = db.NewInMemoryDb(cfg.Slave.Database, writeAheadLog)
+		database, err = db.NewInMemoryDb(cfg.Slave.Database, writeAheadLog, logger)
 		if err != nil {
-
-			fmt.Errorf("failed to create database: %w", err)
+			logger.Error("failed to create database", "error", err.Error())
 		}
 
-		kvServer, err = server.NewSlaveKVStoreServer(walDir, database, writeAheadLog)
+		kvServer, err = server.NewSlaveKVStoreServer(database, writeAheadLog, logger)
 		if err != nil {
-
-			fmt.Errorf("Failed to create server: %v", err)
+			logger.Error("Failed to create server", "error", err.Error())
 		}
 
 		httpServer, err = grpc.New(port, kvServer, logger)

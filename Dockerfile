@@ -25,6 +25,9 @@ WORKDIR /
 # Copy the compiled binary from the builder stage
 COPY --from=builder /app .
 
+# Copy the config file into the container
+COPY config.yaml /config.yaml
+
 # Expose the port that the application listens on (replace 8080 if different)
 EXPOSE 50051 50052 50053
 
