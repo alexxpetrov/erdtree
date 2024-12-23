@@ -26,3 +26,4 @@ go.work.sum
 
 # Ignore output files
 wal
+cmd/tmp
