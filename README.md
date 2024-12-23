@@ -4,7 +4,7 @@
 This is a distributed key-value store system implementing a master-slave replication pattern with Write-Ahead Logging (WAL) for durability. The system is built using Go, Connect-RPC, and Protocol Buffers, designed to provide high availability and eventual consistency.
 
 ## Architecture
-![alt text](image-1.png)
+![alt text](erdtree-arch.png)
 
 ## Flow Diagram 
 - WRITE

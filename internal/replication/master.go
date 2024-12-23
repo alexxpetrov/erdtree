@@ -3,6 +3,7 @@ package replication
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -25,16 +26,18 @@ type MasterReplication struct {
 	wal          *wal.WAL
 	batchSize    int
 	syncInterval time.Duration
+	logger       *slog.Logger
 }
 
 var master *MasterReplication
 
-func NewMasterReplication(wal *wal.WAL, syncInterval time.Duration, batchSize int) *MasterReplication {
+func NewMasterReplication(wal *wal.WAL, syncInterval time.Duration, batchSize int, logger *slog.Logger) *MasterReplication {
 	master = &MasterReplication{
 		wal:          wal,
 		batchSize:    batchSize,
 		syncInterval: syncInterval,
 		slaves:       make(map[string]*SlaveInfo),
+		logger:       logger,
 	}
 
 	go master.startSyncLoop()
@@ -42,25 +45,26 @@ func NewMasterReplication(wal *wal.WAL, syncInterval time.Duration, batchSize in
 	return master
 }
 
-func (m *MasterReplication) AddSlave(address string) error {
+func (m *MasterReplication) AddSlave(address string, env string) error {
 	master.slavesMx.Lock()
 	defer master.slavesMx.Unlock()
 	if _, exists := master.slaves[address]; exists {
 		return fmt.Errorf("slave node exists: %s", address)
 	}
 
-	baseURL := "http://" + address // Use https:// for secure connections
-	client := &http.Client{
-		// You can customize the HTTP client here if needed
-		// For example, add timeouts, custom transport, etc.
+	protocol := "http://"
+
+	if env == "prod" {
+		protocol = "https://"
 	}
 
-	// Create the Connect-Go client
+	slaveUrl := protocol + address
+
 	erdtreeClient := dbv1connect.NewErdtreeStoreClient(
-		client,
-		baseURL,
-		connect.WithGRPC(), // Use this if you want gRPC compatibility
+		http.DefaultClient,
+		slaveUrl,
 	)
+
 	master.slaves[address] = &SlaveInfo{
 		Address:  address,
 		Client:   erdtreeClient,
@@ -75,9 +79,6 @@ func (m *MasterReplication) RemoveSlave(address string) {
 	defer master.slavesMx.Unlock()
 
 	if _, exists := master.slaves[address]; exists {
-		// if conn, ok := slave.Client.(*grpc.ClientConn); ok {
-		// 	conn.Close()
-		// }
 		delete(master.slaves, address)
 	}
 }
@@ -88,7 +89,7 @@ func (m *MasterReplication) startSyncLoop() {
 	defer ticker.Stop()
 
 	for range ticker.C {
-
+		m.logger.Info("Syncing with slaves")
 		master.syncAllSlaves()
 	}
 }
@@ -104,12 +105,10 @@ func (m *MasterReplication) syncAllSlaves() {
 
 func (m *MasterReplication) syncSlave(slave *SlaveInfo) {
 	entries, err := master.wal.GetEntriesSince(slave.LastSync)
-
 	if err != nil {
 		fmt.Printf("Error getting WAL entries for slave %s: %v\n", slave.Address, err)
 		return
 	}
-
 	for i := 0; i < len(entries); i += master.batchSize {
 		end := i + master.batchSize
 
@@ -127,10 +126,6 @@ func (m *MasterReplication) syncSlave(slave *SlaveInfo) {
 }
 
 func (m *MasterReplication) sendBatchToSlave(slave *SlaveInfo, batch []*dbv1.LogEntry) error {
-	_, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-
-	defer cancel()
-
 	request := connect.NewRequest(&dbv1.ReplicationRequest{
 		Entries: make([]*dbv1.LogEntry, len(batch)),
 	})
@@ -146,9 +141,9 @@ func (m *MasterReplication) sendBatchToSlave(slave *SlaveInfo, batch []*dbv1.Log
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+
 	defer cancel()
 	resp, err := slave.Client.Replicate(ctx, request)
-
 	if err != nil {
 		// Handle different types of errors
 		if connectErr, ok := err.(*connect.Error); ok {
@@ -164,7 +159,8 @@ func (m *MasterReplication) sendBatchToSlave(slave *SlaveInfo, batch []*dbv1.Log
 		return fmt.Errorf("unknown error during replication to slave %s: %v", slave.Address, err)
 	}
 
-	// Check the response
+	m.logger.Info("replicating to slave", "slave", slave.Address, "entries", len(batch))
+
 	if !resp.Msg.Success {
 		return fmt.Errorf("replication to slave %s failed: %s", slave.Address, resp.Msg.Error)
 	}
@@ -176,11 +172,13 @@ func (m *MasterReplication) ReplicateEntry(entry *dbv1.LogEntry) {
 	master.slavesMx.RLock()
 	defer master.slavesMx.RUnlock()
 
+	m.logger.Info("replicating to slave", entry.Key, entry)
+
 	for _, slave := range master.slaves {
-		go func(slave *SlaveInfo) {
+		go func() {
 			if err := master.sendBatchToSlave(slave, []*dbv1.LogEntry{entry}); err != nil {
 				fmt.Printf("Failed to replicate entry %s to %s", entry.Key, slave.Address)
 			}
-		}(slave)
+		}()
 	}
 }
