@@ -75,7 +75,7 @@ func setDefaults() {
 
 	// WAL defaults
 	viper.SetDefault("wal.directory", "/var/lib/kvstore/wal")
-	viper.SetDefault("wal.syncinterval", "2s")
+	viper.SetDefault("wal.syncinterval", "100ms")
 
 	// Master defaults
 	viper.SetDefault("master.syncinterval", "10s")
